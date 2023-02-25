@@ -179,46 +179,37 @@ app.get("/user/followers/", authenticateToken, async (request, response) => {
 });
 
 //get API 6
-app.get("/tweets/:tweetId/", authenticateToken, async (request, response) => {
-  const { tweetId } = request.params;
-  const { username } = request;
-  const userId = `
-  SELECT user_id FROM user WHERE username = '${username}';`;
-  dbUser = await db.get(userId);
+app.get("/tweets/:tweetId/", authenticateToken, async (req, res) => { 
+   const username = req.username; 
+   const { tweetId } = req.params; 
 
-  const tweetQuery = `
-    SELECT * FROM tweet WHERE tweet_id = ${tweetId};`;
-  const tweetResult = await db.get(tweetQuery);
-  //   console.log(tweetResult);
+   const getTweetQuery = SELECT 
+             UF.tweet AS tweet, 
+             (SELECT DISTINCT COUNT() FROM like WHERE tweet_id = "${tweetId}") AS likes, 
+             (SELECT DISTINCT COUNT() FROM reply WHERE tweet_id = "${tweetId}") AS replies, 
+             tweet.date_time AS dateTime 
+         FROM 
+             (follower INNER JOIN 
+             tweet ON follower.following_user_id = tweet.user_id) AS UF 
+         WHERE 
+              UF.follower_user_id =  
+              (SELECT 
+                     user_id 
+              FROM 
+                     user 
+              WHERE 
+                      username = "${username}") 
+              AND 
+                 UF.tweet_id = "${tweetId}";; 
+   const tweetDetails = await db.get(getTweetQuery); 
 
-  const userFollowerQuery = `
-    SELECT * 
-    FROM 
-        follower INNER JOIN user ON 
-        user.user_id = follower.following_user_id
-    WHERE 
-        follower.follower_user_id =${dbUser.user_id}`;
-  const userFollowers = await db.all(userFollowerQuery);
-  //   console.log(userFollowers);
-
-  if (
-    userFollowers.some((item) => item.following_user_id === tweetResult.user_id)
-  ) {
-    const getTodoQuery = `
-    SELECT 
-         tweet.tweet, COUNT(like.like_id) AS likes, COUNT(reply.reply) AS replies, tweet.date_time AS dateTime
-    FROM (tweet NATURAL JOIN reply
-         NATURAL JOIN like) AS T INNER JOIN follower
-        ON T.user_id = follower.following_user_id  
-    WHERE 
-         follower.follower_user_id =${dbUser.user_id}`;
-    const todoUser = await db.get(getTodoQuery);
-    response.send(todoUser);
-  } else {
-    response.status(401);
-    response.send("Invalid Request");
-  }
-});
+   if (tweetDetails === undefined) { 
+     res.status(401); 
+     res.send("Invalid Request"); 
+   } else { 
+     res.send(tweetDetails); 
+   } 
+ });
 
 //get API 9
 app.get("/user/tweets/", authenticateToken, async (request, response) => {});
